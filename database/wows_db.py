@@ -39,7 +39,7 @@ class Wows_database:
 		self.logger.info('Update started.')
 		try:
 			await self._update_medium()
-			await self._update_facebook()
+			# await self._update_facebook()
 			await self._update_hp()
 		except Exception:
 			self.logger.critical(f'Exception while updating: {traceback.format_exc()}')

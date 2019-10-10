@@ -1,37 +1,55 @@
 import codecs
+import itertools
 import json
-import time
 import re
+import time
 from datetime import datetime
 from urllib import parse as urlparse
 
 from requests import RequestException
 from requests_html import HTML, HTMLSession
 
+__all__ = ['get_posts']
+
 
 _base_url = 'https://m.facebook.com'
+_user_agent = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+			   "AppleWebKit/537.36 (KHTML, like Gecko) "
+			   "Chrome/76.0.3809.87 Safari/537.36")
+_headers = {'User-Agent': _user_agent, 'Accept-Language': 'en-US,en;q=0.5'}
+
+_session = None
+_timeout = None
 
 _likes_regex = re.compile(r'([0-9,.]+)\s+Like')
 _comments_regex = re.compile(r'([0-9,.]+)\s+Comment')
 _shares_regex = re.compile(r'([0-9,.]+)\s+Shares')
+_link_regex = re.compile(r"href=\"https:\/\/lm\.facebook\.com\/l\.php\?u=(.+?)\&amp;h=")
 
-_cursor_regex = re.compile(r'href:"(/page_content[_/?=&%\w]+)"')
-_cursor_regex_2 = re.compile(r'href":"(\\/page_content[^"]+)"')
+_cursor_regex = re.compile(r'href:"(/page_content[^"]+)"')  # First request
+_cursor_regex_2 = re.compile(r'href":"(\\/page_content[^"]+)"')  # Other requests
 
-_image_regex = re.compile(r"background-image: url\('(.+)'\)")
+_photo_link = re.compile(r"<a href=\"(/[^\"]+/photos/[^\"]+?)\"")
+_image_regex = re.compile(
+	r"<a href=\"([^\"]+?)\" target=\"_blank\" class=\"sec\">View Full Size<\/a>"
+)
+_image_regex_lq = re.compile(r"background-image: url\('(.+)'\)")
 _post_url_regex = re.compile(r'/story.php\?story_fbid=')
 
 
 def get_posts(account, pages=10, timeout=5, sleep=0):
 	"""Gets posts for a given account."""
+	global _session, _timeout
 
-	url = f'{_base_url}/{account}/posts/'
+	url = f'{_base_url}/pg/{account}/posts/'
 
-	session = HTMLSession()
-	session.headers.update({'Accept-Language': 'en-US,en;q=0.5'})
+	_session = HTMLSession()
+	_session.headers.update(_headers)
 
-	response = session.get(url, timeout=timeout)
+	_timeout = timeout
+	response = _session.get(url, timeout=_timeout)
 	html = response.html
+	print(html)
 	cursor_blob = html.html
 
 	while True:
@@ -49,7 +67,7 @@ def get_posts(account, pages=10, timeout=5, sleep=0):
 			time.sleep(sleep)
 
 		try:
-			response = session.get(next_url, timeout=timeout)
+			response = _session.get(next_url, timeout=timeout)
 			response.raise_for_status()
 			data = json.loads(response.text.replace('for (;;);', '', 1))
 		except (RequestException, ValueError):
@@ -63,41 +81,50 @@ def get_posts(account, pages=10, timeout=5, sleep=0):
 
 
 def _extract_post(article):
-	text = _extract_text(article)
-	if text is None:
-		return None
-	text = text.splitlines()
-	return (
-		# 'post_id': _extract_post_id(article),
-		# 'title': text[0],
-		# 'description': text[1:],
-		#'time': _extract_time(article),
-		# 'post_url': _extract_post_url(article),
-
-		# 'image': _extract_image(article),
-		# 'likes': _find_and_search(article, 'footer', _likes_regex, _parse_int) or 0,
-		# 'comments': _find_and_search(article, 'footer', _comments_regex, _parse_int) or 0,
-		# 'shares':  _find_and_search(article, 'footer', _shares_regex, _parse_int) or 0,
-		'facebook',
-		text[0],
-		'\n'.join(line for line in text[1:]),
-		_extract_post_url(article),
-		_extract_image(article),
-	)
+	text, post_text, shared_text = _extract_text(article)
+	return {
+		'post_id': _extract_post_id(article),
+		'text': text,
+		'post_text': post_text,
+		'shared_text': shared_text,
+		'time': _extract_time(article),
+		'image': _extract_image(article),
+		'likes': _find_and_search(article, 'footer', _likes_regex, _parse_int) or 0,
+		'comments': _find_and_search(article, 'footer', _comments_regex, _parse_int) or 0,
+		'shares':  _find_and_search(article, 'footer', _shares_regex, _parse_int) or 0,
+		'post_url': _extract_post_url(article),
+		'link': _extract_link(article),
+	}
 
 
 def _extract_post_id(article):
 	try:
 		data_ft = json.loads(article.attrs['data-ft'])
-		return int(data_ft['mf_story_key'])
+		return data_ft['mf_story_key']
 	except (KeyError, ValueError):
 		return None
 
 
 def _extract_text(article):
-	paragraphs = article.find('p')
-	if paragraphs:
-		return '\n'.join(paragraph.text for paragraph in paragraphs)
+	nodes = article.find('p, header')
+	if nodes:
+		post_text = []
+		shared_text = []
+		ended = False
+		for node in nodes[1:]:
+			if node.tag == "header":
+				ended = True
+			if not ended:
+				post_text.append(node.text)
+			else:
+				shared_text.append(node.text)
+
+		text = '\n'.join(itertools.chain(post_text, shared_text))
+		post_text = '\n'.join(post_text)
+		shared_text = '\n'.join(shared_text)
+
+		return text, post_text, shared_text
+
 	return None
 
 
@@ -111,13 +138,35 @@ def _extract_time(article):
 	for page in page_insights.values():
 		try:
 			timestamp = page['post_context']['publish_time']
-			return datetime.fromtimestamp(timestamp).strftime('%y%m%d%H%M')
+			return datetime.fromtimestamp(timestamp)
 		except (KeyError, ValueError):
 			continue
 	return None
 
 
+def _extract_photo_link(article):
+	match = _photo_link.search(article.html)
+	if not match:
+		return None
+
+	url = f"{_base_url}{match.groups()[0]}"
+
+	response = _session.get(url, timeout=_timeout)
+	html = response.html.html
+	match = _image_regex.search(html)
+	if match:
+		return match.groups()[0].replace("&amp;", "&")
+	return None
+
+
 def _extract_image(article):
+	image_link = _extract_photo_link(article)
+	if image_link is not None:
+		return image_link
+	return _extract_image_lq(article)
+
+
+def _extract_image_lq(article):
 	story_container = article.find('div.story_body_container', first=True)
 	other_containers = story_container.xpath('div/div')
 
@@ -127,10 +176,18 @@ def _extract_image(article):
 			continue
 
 		style = image_container.attrs.get('style', '')
-		match = _image_regex.search(style)
+		match = _image_regex_lq.search(style)
 		if match:
 			return _decode_css_url(match.groups()[0])
 
+	return None
+
+
+def _extract_link(article):
+	html = article.html
+	match = _link_regex.search(html)
+	if match:
+		return urlparse.unquote(match.groups()[0])
 	return None
 
 
@@ -211,5 +268,5 @@ def get_facebook_articles() -> list:
 		
 
 if __name__ == '__main__':
-	with open('temp.txt', 'w', encoding='utf-8') as f:
-		f.write((str(get_facebook_articles())))
+	for post in get_posts('wowsdevblog'):
+		print(post)
