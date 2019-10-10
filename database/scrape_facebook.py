@@ -210,7 +210,6 @@ def get_facebook_articles() -> list:
 	return articles
 		
 
-# if __name__ == '__main__':
-# 	s = Scrape_facebook()
-# 	with open('temp.txt', 'w', encoding='utf-8') as f:
-# 		f.write((str(s.scrape_facebook())))
+if __name__ == '__main__':
+	with open('temp.txt', 'w', encoding='utf-8') as f:
+		f.write((str(get_facebook_articles())))

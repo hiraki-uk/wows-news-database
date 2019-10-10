@@ -41,10 +41,8 @@ class Wows_database:
 			await self._update_medium()
 			await self._update_facebook()
 			await self._update_hp()
-		except Exception as e:
-			self.logger.critical(f'Exception while updating: {e}')
-			self.logger.critical(traceback.format_exc())
-		# await self._update_shipstats()
+		except Exception:
+			self.logger.critical(f'Exception while updating: {traceback.format_exc()}')
 		self.logger.info('Update finished.')
 
 
@@ -87,18 +85,22 @@ class Wows_database:
 	def _get_latest(self, source:str):
 		"""
 		Get latest news stored in database.
+
+		Returns
+		-------
+		res : tuple, None
 		"""
 		self.logger.debug(f'Starting _get_latest source: {source}')
-		try:
-			res = self.database.fetchone('SELECT * FROM wowsnews WHERE source==? ORDER BY id DESC', (source,))
-		except Exception as e:
-			self.logger.critical(f'Fetching database in _get_latest failed: {e}')
-			res = None
+		# try:
+		res = self.database.fetchone('SELECT * FROM wowsnews WHERE source==? ORDER BY id DESC', (source,))
+		# except Exception as e:
+		# 	self.logger.critical(f'Fetching database in _get_latest failed: {e}')
+		# 	res = None
 
 		self.logger.debug(f'_get_latest result: {res}')
 		# if no data
-		if res is None:
-			return ('', 0, 0, 0, 0)
+		# if res is None:
+		# 	return ('', 0, 0, 0, 0)
 		return res
 
 
@@ -107,9 +109,9 @@ class Wows_database:
 		Check for new articles, if found update db.
 		"""
 		self.logger.info('Updating wows hp.')
-		# data = self.wowshp.scrape_hp()
 		data = get_hp_articles()
 		data_db = self._get_latest('wowshomepage')
+		
 		# if database is up to date return		
 		if _is_same_data(data_db, data[0]):
 			self.logger.info('Wows hp is up to date.')
@@ -160,10 +162,6 @@ class Wows_database:
 		except Exception as e:
 			self.logger.critical(f'Inserting into database failed: {e}')
 			return
-		# try:
-		# 	self.database.execute('INSERT INTO wowsnews(source, title, description, url, img) VALUES(?, ?, ?, ?, ?)', data)
-		# except Exception as e:
-		# 	self.logger.critical(e)
 		self.logger.info('Updated facebook.')
 
 
@@ -222,11 +220,24 @@ class Wows_database:
 		return True
 
 	
+def _validate_source(data:any):
+	"""
+	Validate given source is data containing tuple.
+	"""
+	if type(data) != tuple:
+		return False
+	elif len(data) != 5:
+		return False
+	return True
+	
+
 def _is_same_data(data_from_db:tuple, data:tuple):
 	"""
 	Returns true if two data are the same excluding the id.
 	Else returns false.
 	"""
+	if data_from_db == None:
+		return False
 	temp = tuple(data_from_db[1:])
 	if temp != data:
 		return False
