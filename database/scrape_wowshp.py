@@ -7,6 +7,8 @@ from bs4 import BeautifulSoup, ResultSet, Tag
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
 
+from scripts.Exceptions import ScrapingException
+
 
 class Homepage_Scraper:
 	__slots__ = ('debug',)
@@ -164,6 +166,9 @@ def get_hp_articles():
 	row = scraper.get_row_div(main)
 	articles = scraper.get_articles(row)
 	articlelist = scraper.get_article_lists(articles)
+	# sometimes getposts does not work
+	if not articlelist:
+		raise ScrapingException('Unable to scrape articles.')
 	return articlelist
 
 

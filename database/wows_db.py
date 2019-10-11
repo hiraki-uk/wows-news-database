@@ -7,17 +7,17 @@ import requests
 
 from database.database import Database
 from database.scrape_facebook import get_facebook_articles
-from database.scrape_medium import  get_medium_articles
+from database.scrape_medium import get_medium_articles
 from database.scrape_wowshp import get_hp_articles
+from scripts.Exceptions import ScrapingException
 from scripts.logger import Logger
 
 
 class Wows_database:
 	"""
-	New wows database class.
-	Creates wows database.
+	Scrapes and registers data into database.
 	"""
-	__slots__ = ('logger','database')
+	__slots__ = ('database', 'logger')
 
 	def __init__(self, db_path):
 		self.database = Database(db_path)
@@ -39,7 +39,7 @@ class Wows_database:
 		self.logger.info('Update started.')
 		try:
 			await self._update_medium()
-			# await self._update_facebook()
+			await self._update_facebook()
 			await self._update_hp()
 		except Exception:
 			self.logger.critical(f'Exception while updating: {traceback.format_exc()}')
@@ -58,27 +58,6 @@ class Wows_database:
 			img TEXT
 		);
 		""")
-		# CREATE TABLE shipstats(
-		# 	ship_id INTEGER PRIMARY KEY,
-		# 	description TEXT,
-		# 	price_gold INTEGER,
-		# 	ship_id_str TEXT,
-		# 	has_demo_profile INTEGER,
-		# 	images TEXT,
-		# 	modules TEXT,
-		# 	modules_tree TEXT,
-		# 	nation TEXT,
-		# 	is_premium INTEGER,
-		# 	price_credit INTEGER,
-		# 	default_profile TEXT,
-		# 	upgrades TEXT,
-		# 	tier INTEGER,
-		# 	next_ships TEXT,
-		# 	mod_slots INTEGER,
-		# 	type TEXT,
-		# 	is_special INTEGER,
-		# 	name TEXT
-		# );
 		self.logger.debug('Created wows database table.')
 
 
@@ -91,16 +70,9 @@ class Wows_database:
 		res : tuple, None
 		"""
 		self.logger.debug(f'Starting _get_latest source: {source}')
-		# try:
 		res = self.database.fetchone('SELECT * FROM wowsnews WHERE source==? ORDER BY id DESC', (source,))
-		# except Exception as e:
-		# 	self.logger.critical(f'Fetching database in _get_latest failed: {e}')
-		# 	res = None
-
 		self.logger.debug(f'_get_latest result: {res}')
-		# if no data
-		# if res is None:
-		# 	return ('', 0, 0, 0, 0)
+		
 		return res
 
 
@@ -109,18 +81,24 @@ class Wows_database:
 		Check for new articles, if found update db.
 		"""
 		self.logger.info('Updating wows hp.')
-		data = get_hp_articles()
+		# get data and data from db.
+		try:
+			data = get_hp_articles()
+		except ScrapingException:
+			self.logger.critical('Scraping failed.')
+			return
 		data_db = self._get_latest('wowshomepage')
 		
-		# if database is up to date return		
+		# if database is up to date return
 		if _is_same_data(data_db, data[0]):
 			self.logger.info('Wows hp is up to date.')
 			return
 		# if same url already exists in database, return
 		elif self._url_exists(data[0][3]):
-			self.logger.info('Url already exists.')
+			self.logger.info('Article with same url exists.')
 			return
 		# update db
+		self.logger.info('Saving data.')
 		try:
 			self.database.execute('INSERT INTO wowsnews(source, title, description, url, img) VALUES(?, ?, ?, ?, ?)', data[0])
 		except Exception as e:
@@ -134,8 +112,13 @@ class Wows_database:
 		Check for new articles, if found update db.
 		"""
 		self.logger.info('Updating facebook.')
-		data = get_facebook_articles()
+		try:
+			data = get_facebook_articles()
+		except ScrapingException:
+			self.logger.critical('Scraping failed.')
+			return
 		data_db = self._get_latest('facebook')
+
 		# if up to date, return
 		if _has_same_url(data_db, data[0]):
 			self.logger.info('Facebook is up to date.')
@@ -156,7 +139,7 @@ class Wows_database:
 			for new in news:
 				# continue if url already exists in database
 				if self._url_exists(new[3]):
-					self.logger.info('Url exists.')
+					self.logger.info('Article with same url exists.')
 					continue
 				self.database.execute('INSERT INTO wowsnews(source, title, description, url, img) VALUES(?, ?, ?, ?, ?)', new)
 		except Exception as e:
@@ -170,7 +153,12 @@ class Wows_database:
 		Check for new articles, if found update db.
 		"""
 		self.logger.info('Updating medium.')
-		data = get_medium_articles()
+		try:
+			data = get_medium_articles()
+		except ScrapingException:
+			self.logger.critical('Scraping failed.')
+			return
+
 		# get latest data in database
 		data_db = self._get_latest('medium')
 		# if up to date, return
@@ -192,18 +180,9 @@ class Wows_database:
 			for new in news:
 				self.database.execute('INSERT INTO wowsnews(source, title, description, url, img) VALUES(?, ?, ?, ?, ?)', new)
 		except Exception as e:
-			self.logger.debug(f'Inserting into database failed: {e}')
+			self.logger.critical(f'Inserting into database failed: {e}')
 			return
 		self.logger.info('Updated medium.')
-
-
-	async def _update_shipstats(self):
-		"""
-		Update statistics of ships to database.
-		"""
-		# fetch ship data
-		r = requests.get(f'')
-		# for each data check database, if changes notice and replace, else pass
 
 
 	def _url_exists(self, url:str):
@@ -220,17 +199,6 @@ class Wows_database:
 		return True
 
 	
-def _validate_source(data:any):
-	"""
-	Validate given source is data containing tuple.
-	"""
-	if type(data) != tuple:
-		return False
-	elif len(data) != 5:
-		return False
-	return True
-	
-
 def _is_same_data(data_from_db:tuple, data:tuple):
 	"""
 	Returns true if two data are the same excluding the id.
@@ -248,7 +216,13 @@ def _has_same_url(data_from_db:tuple, data:tuple):
 	"""
 	Returns true if two data share the same url.
 	Else returns false.
+
+	This method is craeted for comparing facebook data as
+	_is_same_data return false for same article where
+	pic url sometime changes.
 	"""
+	if data_from_db == None:
+		return False
 	temp = tuple(data_from_db[1:])
 	if temp[3] != data[3]:
 		return False

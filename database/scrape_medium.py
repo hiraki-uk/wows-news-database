@@ -2,10 +2,11 @@ import json
 import logging
 
 import chromedriver_binary
-from bs4 import BeautifulSoup
-from bs4 import Tag
+from bs4 import BeautifulSoup, Tag
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
+
+from scripts.Exceptions import ScrapingException
 
 
 class Medium:
@@ -159,6 +160,10 @@ def get_medium_articles(debug=False):
 	section = medium.get_section_tag(body)
 	articles = medium.get_raw_article_div(section)
 	temp = medium.get_article_lists(articles)
+	# sometimes scraping does not work
+	if not temp:
+		raise ScrapingException('Unable to scrape articles.')
+
 	return temp
 	
 

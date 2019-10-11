@@ -1,4 +1,4 @@
-from logging import Formatter, handlers, StreamHandler, getLogger, DEBUG
+from logging import Formatter, handlers, StreamHandler, getLogger, DEBUG, INFO
 
 class Logger:
 	__slots__ = ('logger',)

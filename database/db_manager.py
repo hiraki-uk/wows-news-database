@@ -29,13 +29,10 @@ class Database_manager:
 			# update wows
 
 			try:
-				self.logger.debug('Starting wows database update.')
+				self.logger.info('Starting wows database update.')
 				await self.wowsdb.update()
-				self.logger.debug('Finished wows database update.')
+				self.logger.info('Finished wows database update.')
 			except Exception as e:
-				self.logger.critical(f'{e}')
 				self.logger.critical(traceback.format_exc())
-			# with open('growth.txt', 'a') as f:
-			# 	f.write('------------')
-			# 	objgraph.show_growth(file=f)
-			await asyncio.sleep(60*0.5)
+				
+			await asyncio.sleep(60*3)
