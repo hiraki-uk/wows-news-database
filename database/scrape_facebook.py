@@ -8,7 +8,7 @@ from urllib import parse as urlparse
 from requests import RequestException
 from requests_html import HTML, HTMLSession
 
-from scripts.Exceptions import ScrapingException
+# from scripts.Exceptions import ScrapingException
 
 
 _base_url = 'https://m.facebook.com'
@@ -211,8 +211,8 @@ def get_facebook_articles() -> list:
 		articles.append(post)
 	
 	# sometimes getposts does not work
-	if not articles:
-		raise ScrapingException('Unable to scrape articles.')
+	# if not articles:
+	# raise ScrapingException('Unable to scrape articles.')
 
 	return articles
 		

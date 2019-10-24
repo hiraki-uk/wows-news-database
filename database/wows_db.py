@@ -38,8 +38,8 @@ class Wows_database:
 		"""
 		self.logger.info('Update started.')
 		try:
-			await self._update_medium()
-			await self._update_facebook()
+			# await self._update_medium()
+			# await self._update_facebook()
 			await self._update_hp()
 		except Exception:
 			self.logger.critical(f'Exception while updating: {traceback.format_exc()}')
@@ -219,7 +219,7 @@ def _has_same_url(data_from_db:tuple, data:tuple):
 
 	This method is craeted for comparing facebook data as
 	_is_same_data return false for same article where
-	pic url sometime changes.
+	pic url are different.
 	"""
 	if data_from_db == None:
 		return False
