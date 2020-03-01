@@ -9,9 +9,9 @@ class Database:
 	"""
 	Database class.
 	"""
-	def __init__(self, db_path:str, logger=None):
+	def __init__(self, db_path:str):
 		self.db_path = db_path
-		self.logger = Logger(__name__) if logger is None else logger
+		self.logger = Logger(self.__class__.__name__)
 
 
 	def fetchone(self, command:str, values=()):

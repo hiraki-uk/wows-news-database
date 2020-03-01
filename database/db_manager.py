@@ -18,7 +18,7 @@ class Database_manager:
 	__slots__ = ('logger', 'wowsdb')
 
 	def __init__(self, db_path):
-		self.logger = Logger(__name__)
+		self.logger = Logger(self.__class__.__name__)
 		self.wowsdb = Wows_database(db_path)
 
 	async def start(self):

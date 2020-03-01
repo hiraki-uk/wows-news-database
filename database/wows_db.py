@@ -21,7 +21,7 @@ class Wows_database:
 
 	def __init__(self, db_path):
 		self.database = Database(db_path)
-		self.logger = Logger(__name__)
+		self.logger = Logger(self.__class__.__name__)
 		# if db file not found or empty, create file
 		try:
 			with open(db_path, 'rb') as f:
