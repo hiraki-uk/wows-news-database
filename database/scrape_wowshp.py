@@ -4,8 +4,8 @@ import re
 
 import chromedriver_binary
 from bs4 import BeautifulSoup, ResultSet, Tag
-from selenium.webdriver import Chrome
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver import Firefox
+from selenium.webdriver.firefox.options import Options
 
 from scripts.Exceptions import ScrapingException
 
@@ -29,7 +29,7 @@ class Homepage_Scraper:
 		options = Options()
 		options.headless = True
 		options.add_experimental_option('excludeSwitches', ['enable-logging'])
-		driver = Chrome(options=options)
+		driver = Firefox(options=options)
 		driver.get('https://worldofwarships.asia/ja/')
 		source = driver.page_source.encode('utf-8')
 		driver.quit()
