@@ -2,7 +2,6 @@ import json
 import logging
 import re
 
-import chromedriver_binary
 from bs4 import BeautifulSoup, ResultSet, Tag
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
